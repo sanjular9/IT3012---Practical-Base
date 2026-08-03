@@ -2,7 +2,6 @@
 import random
 import tkinter as tk
 
-
 class VisualGridHuntGame:
     """A flexible Pacman-style grid environment with support for configurable opponents and larger scales."""
 
@@ -50,15 +49,17 @@ class VisualGridHuntGame:
         self.collision = False
 
     def get_percept(self) -> dict:
+        x, y = self.agent_pos
+
         return {
-            'agent_pos': list(self.agent_pos),
-            'opponent_positions': [list(op) for op in self.opponents],
-            'smells_food': tuple(self.agent_pos) in self.food_positions,
-            'smells_toxin': tuple(self.agent_pos) in self.toxic_traps,
-            'hit_wall': tuple(self.agent_pos) in self.walls,
-            'collision': self.collision,
-            'score': self.score,
-            'remaining_food': len(self.food_positions)
+            "wall_up": (x, y + 1) in self.walls or y + 1 >= self.height,
+        "wall_down": (x, y - 1) in self.walls or y - 1 < 0,
+        "wall_left": (x - 1, y) in self.walls or x - 1 < 0,
+        "wall_right": (x + 1, y) in self.walls or x + 1 >= self.width,
+
+        "food_here": (x, y) in self.food_positions,
+        "toxin_here": (x, y) in self.toxic_traps,
+        "collision": self.collision
         }
 
     def execute_action(self, action: str):
@@ -105,6 +106,74 @@ class VisualGridHuntGame:
     def is_done(self) -> bool:
         return len(self.food_positions) == 0 or self.steps >= 60 or self.collision
 
+class SimpleReflexAgent:
+    """
+    A Simple Reflex Agent that makes decisions using only
+    the current percept (no memory).
+    """
+
+    def sense_and_act(self, percept):
+
+        # Rule 1: If food is here, stay and collect it
+        if percept["food_here"]:
+            return "Stay"
+
+        # Rule 2: Move in the first available direction
+        if not percept["wall_up"]:
+            return "Up"
+
+        if not percept["wall_right"]:
+            return "Right"
+
+        if not percept["wall_down"]:
+            return "Down"
+
+        if not percept["wall_left"]:
+            return "Left"
+
+        # If surrounded by walls
+        return "Stay"   
+
+class ModelBasedAgent:
+    """
+    A Model-Based Agent that remembers its last action.
+    """
+
+    def __init__(self):
+        self.last_action = "Up"
+
+    def sense_and_act(self, percept):
+
+        # If food is here, collect it
+        if percept["food_here"]:
+            return "Stay"
+
+        # Continue moving if path is clear
+        if self.last_action == "Up" and not percept["wall_up"]:
+            return "Up"
+
+        if self.last_action == "Right" and not percept["wall_right"]:
+            return "Right"
+
+        if self.last_action == "Down" and not percept["wall_down"]:
+            return "Down"
+
+        if self.last_action == "Left" and not percept["wall_left"]:
+            return "Left"
+
+        # Change direction if blocked
+        if not percept["wall_right"]:
+            self.last_action = "Right"
+        elif not percept["wall_down"]:
+            self.last_action = "Down"
+        elif not percept["wall_left"]:
+            self.last_action = "Left"
+        elif not percept["wall_up"]:
+            self.last_action = "Up"
+        else:
+            self.last_action = "Stay"
+
+        return self.last_action         
 
 class GridGameGUI:
     """Tkinter wrapper that dynamically scales cell sizes to keep larger grids on screen."""
@@ -115,6 +184,7 @@ class GridGameGUI:
 
         self.env = VisualGridHuntGame(width=width, height=height, num_food=num_food, num_opponents=num_opponents,
                                       custom_walls=walls)
+        self.sgent = ModelBasedAgent()
 
         # Dynamically calculate cell size so the total canvas fits nicely within a 600x600 window ceiling
         max_canvas_dim = 600
@@ -186,7 +256,8 @@ class GridGameGUI:
 
         def step():
             if not self.env.is_done():
-                action = random.choice(['Up', 'Down', 'Left', 'Right'])
+                percept = self.env.get_percept()
+                action = self.sgent.sense_and_act(percept)
                 self.env.execute_action(action)
 
                 self.draw_grid()
