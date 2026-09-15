@@ -157,7 +157,7 @@ class SearchAgent:
 
     def find_plan(self, percept):
         start = tuple(percept["agent_pos"])
-        food = [tuple(f) for f in percept["all_food"]]
+        food = [tuple(f) for f in percept["remaining_food"]]
 
         if not food:
             return []
@@ -199,3 +199,5 @@ class SearchAgent:
             return self.plan.pop(0)
 
         return "Stay"
+
+
